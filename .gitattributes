@@ -1,0 +1,3 @@
+* text=auto eol=lf
+# The CSV report uses CRLF line ends, as RFC 4180 says; keep them as written.
+examples/output/*.csv -text

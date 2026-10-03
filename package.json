@@ -1,0 +1,50 @@
+{
+  "name": "service-coupling-check",
+  "version": "1.0.0",
+  "description": "Read one or more Docker Compose files (YAML or JSON) and report how tightly the services are coupled: services that share one database, loops and long chains in depends_on and links, depends_on that does not wait for a healthcheck, services that others depend on with no healthcheck, one service that most others reach, peers reached by a fixed IP address, and names that no file defines. Each finding has its file, JSON pointer and line and quotes the Compose Specification or the microservices pattern page it rests on. Fetches nothing, no dependencies.",
+  "type": "module",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "bin": {
+    "service-coupling-check": "bin/service-coupling-check.js"
+  },
+  "files": [
+    "bin",
+    "src",
+    "docs",
+    "examples",
+    "research",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node --test \"test/*.test.js\"",
+    "test:coverage": "node --test --experimental-test-coverage \"test/*.test.js\"",
+    "check": "node tools/check.mjs",
+    "example": "node tools/example.mjs"
+  },
+  "keywords": [
+    "microservices",
+    "docker-compose",
+    "compose",
+    "coupling",
+    "database-per-service",
+    "depends-on",
+    "healthcheck",
+    "architecture",
+    "linter",
+    "cli"
+  ],
+  "author": "INNERLUXES <info@innerluxes.dev>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/INNERLUXES/service-coupling-check.git"
+  },
+  "homepage": "https://innerluxes.dev/software-development/microservices-consulting"
+}
