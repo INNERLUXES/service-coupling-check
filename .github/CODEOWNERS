@@ -1,0 +1,13 @@
+# Every change is reviewed by a maintainer.
+* @innerluxesdev
+
+# The lists and sentences come from the saved specification and pattern pages, and the readers and the checks decide every line of the report; changes need extra care.
+/src/data.js @innerluxesdev
+/research/ @innerluxesdev
+/src/json.js @innerluxesdev
+/src/yaml.js @innerluxesdev
+/src/compose.js @innerluxesdev
+/src/address.js @innerluxesdev
+/src/files.js @innerluxesdev
+/src/rules.js @innerluxesdev
+/src/check.js @innerluxesdev
