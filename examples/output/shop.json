@@ -1,0 +1,449 @@
+{
+  "tool": "service-coupling-check",
+  "version": "1.0.0",
+  "compose": {
+    "files": [
+      {
+        "path": "examples/shop.compose.yaml",
+        "format": "yaml",
+        "services": 6
+      }
+    ],
+    "services": 6,
+    "applications": 5,
+    "databases": 1,
+    "brokers": 0,
+    "references": 13,
+    "byKind": {
+      "depends_on": 8,
+      "links": 1,
+      "environment": 9
+    },
+    "maxChain": 3,
+    "hubMin": 3
+  },
+  "areas": [
+    {
+      "id": "model",
+      "title": "Compose model",
+      "result": "pass",
+      "detail": "no finding",
+      "findings": 0
+    },
+    {
+      "id": "data",
+      "title": "Data ownership",
+      "result": "fail",
+      "detail": "shared-database x1",
+      "findings": 1
+    },
+    {
+      "id": "startup",
+      "title": "Startup order",
+      "result": "fail",
+      "detail": "unknown-dependency x1, dependency-cycle x1, deep-startup-chain x1, depends-on-not-healthy x5, no-healthcheck x2",
+      "findings": 10
+    },
+    {
+      "id": "coupling",
+      "title": "Coupling",
+      "result": "warn",
+      "detail": "hub-service x1, hardcoded-peer-address x1, summary x1",
+      "findings": 3
+    }
+  ],
+  "services": [
+    {
+      "name": "gateway",
+      "kind": "application",
+      "fanIn": 0,
+      "fanOut": 4,
+      "healthcheck": "no",
+      "chain": 4
+    },
+    {
+      "name": "orders",
+      "kind": "application",
+      "fanIn": 1,
+      "fanOut": 3,
+      "healthcheck": "yes",
+      "chain": 3
+    },
+    {
+      "name": "payments",
+      "kind": "application",
+      "fanIn": 2,
+      "fanOut": 2,
+      "healthcheck": "no",
+      "chain": 2
+    },
+    {
+      "name": "users",
+      "kind": "application",
+      "fanIn": 4,
+      "fanOut": 2,
+      "healthcheck": "yes",
+      "chain": 1
+    },
+    {
+      "name": "catalog",
+      "kind": "application",
+      "fanIn": 2,
+      "fanOut": 2,
+      "healthcheck": "no",
+      "chain": 0
+    },
+    {
+      "name": "postgres",
+      "kind": "database",
+      "fanIn": 4,
+      "fanOut": 0,
+      "healthcheck": "yes",
+      "chain": 0
+    }
+  ],
+  "findings": [
+    {
+      "id": "shared-database",
+      "severity": "error",
+      "area": "data",
+      "file": "examples/shop.compose.yaml",
+      "where": "#/services/postgres",
+      "line": 64,
+      "subject": "postgres",
+      "message": "The services \"orders\" (depends_on, DATABASE_URL), \"payments\" (PAYMENTS_DB_HOST), \"users\" (depends_on, DATABASE_URL) and \"catalog\" (SPRING_DATASOURCE_URL) all reach the database service \"postgres\", and at least two of them name the same database on it. A change to one table can then break another service, and one service's load or locks can slow down the others.",
+      "fix": "Give each service its own database (a database server per service, or its own database or schema on \"postgres\" with credentials that reach only that one), and let the other services ask the owner through its API.",
+      "basis": [
+        {
+          "text": "Keep each microservice's persistent data private to that service and accessible only via its API.",
+          "section": "Solution",
+          "source": "https://microservices.io/patterns/data/database-per-service.html"
+        },
+        {
+          "text": "Development time coupling - a developer working on, for example, the OrderService will need to coordinate schema changes with the developers of other services that access the same tables.",
+          "section": "Drawbacks",
+          "source": "https://microservices.io/patterns/data/shared-database.html"
+        }
+      ],
+      "source": "https://microservices.io/patterns/data/database-per-service.html"
+    },
+    {
+      "id": "unknown-dependency",
+      "severity": "error",
+      "area": "startup",
+      "file": "examples/shop.compose.yaml",
+      "where": "#/services/payments/depends_on/fraud-check",
+      "line": 37,
+      "subject": "payments",
+      "message": "The service \"payments\" depends on \"fraud-check\" in depends_on, and no file defines a service of that name, so Compose cannot start \"payments\".",
+      "fix": "Define the service \"fraud-check\", correct the name, or remove the entry.",
+      "basis": [
+        {
+          "text": "The short syntax variant only specifies service names of the dependencies.",
+          "section": "depends_on, short syntax",
+          "source": "https://github.com/compose-spec/compose-spec/blob/main/05-services.md"
+        },
+        {
+          "text": "Compose guarantees dependency services have been started before starting a dependent service.",
+          "section": "depends_on, short syntax",
+          "source": "https://github.com/compose-spec/compose-spec/blob/main/05-services.md"
+        }
+      ],
+      "source": "https://github.com/compose-spec/compose-spec/blob/main/05-services.md"
+    },
+    {
+      "id": "dependency-cycle",
+      "severity": "error",
+      "area": "startup",
+      "file": "examples/shop.compose.yaml",
+      "where": "#/services/users/links/0",
+      "line": 50,
+      "subject": "users",
+      "message": "The services \"users\" and \"catalog\" depend on each other in a loop through depends_on and links, so there is no order in which Compose can create them, or remove them.",
+      "fix": "Remove the link that is not needed at startup. If the services truly need each other, they are one unit: merge them, or let one find the other at run time and retry instead of waiting for it at startup.",
+      "basis": [
+        {
+          "text": "Compose creates services in dependency order.",
+          "section": "depends_on, short syntax",
+          "source": "https://github.com/compose-spec/compose-spec/blob/main/05-services.md"
+        },
+        {
+          "text": "Compose removes services in dependency order.",
+          "section": "depends_on, short syntax",
+          "source": "https://github.com/compose-spec/compose-spec/blob/main/05-services.md"
+        }
+      ],
+      "source": "https://github.com/compose-spec/compose-spec/blob/main/05-services.md"
+    },
+    {
+      "id": "deep-startup-chain",
+      "severity": "warning",
+      "area": "startup",
+      "file": "examples/shop.compose.yaml",
+      "where": "#/services/gateway/depends_on/0",
+      "line": 11,
+      "subject": "gateway",
+      "message": "The service \"gateway\" starts only after a chain of 4 services: gateway -> orders -> payments -> users -> postgres. The limit is 3. Each step waits for the one below it, so a slow or failing service at the end holds up every service above it.",
+      "fix": "Remove the depends_on entries that are not needed at startup, and let a service retry a peer at run time instead of waiting for it. Raise the limit with --max-chain only if the chain is wanted.",
+      "basis": [
+        {
+          "text": "Compose guarantees dependency services have been started before starting a dependent service.",
+          "section": "depends_on, short syntax",
+          "source": "https://github.com/compose-spec/compose-spec/blob/main/05-services.md"
+        },
+        {
+          "text": "Services must be loosely coupled so that they can be developed, deployed and scaled independently",
+          "section": "Forces",
+          "source": "https://microservices.io/patterns/data/database-per-service.html"
+        }
+      ],
+      "source": "https://github.com/compose-spec/compose-spec/blob/main/05-services.md"
+    },
+    {
+      "id": "depends-on-not-healthy",
+      "severity": "warning",
+      "area": "startup",
+      "file": "examples/shop.compose.yaml",
+      "where": "#/services/gateway/depends_on/0",
+      "line": 11,
+      "subject": "gateway",
+      "message": "The service \"gateway\" depends on \"orders\" with the short syntax, so Compose starts it as soon as the container of \"orders\" has started, not when it is healthy, although \"orders\" has a healthcheck.",
+      "fix": "Write the long syntax with \"condition: service_healthy\" for \"orders\".",
+      "basis": [
+        {
+          "text": "Compose guarantees dependency services have been started before starting a dependent service.",
+          "section": "depends_on, short syntax",
+          "source": "https://github.com/compose-spec/compose-spec/blob/main/05-services.md"
+        },
+        {
+          "text": "Compose waits for healthchecks to pass on dependencies marked with `service_healthy`.",
+          "section": "depends_on, long syntax",
+          "source": "https://github.com/compose-spec/compose-spec/blob/main/05-services.md"
+        }
+      ],
+      "source": "https://github.com/compose-spec/compose-spec/blob/main/05-services.md"
+    },
+    {
+      "id": "depends-on-not-healthy",
+      "severity": "warning",
+      "area": "startup",
+      "file": "examples/shop.compose.yaml",
+      "where": "#/services/gateway/depends_on/2",
+      "line": 13,
+      "subject": "gateway",
+      "message": "The service \"gateway\" depends on \"users\" with the short syntax, so Compose starts it as soon as the container of \"users\" has started, not when it is healthy, although \"users\" has a healthcheck.",
+      "fix": "Write the long syntax with \"condition: service_healthy\" for \"users\".",
+      "basis": [
+        {
+          "text": "Compose guarantees dependency services have been started before starting a dependent service.",
+          "section": "depends_on, short syntax",
+          "source": "https://github.com/compose-spec/compose-spec/blob/main/05-services.md"
+        },
+        {
+          "text": "Compose waits for healthchecks to pass on dependencies marked with `service_healthy`.",
+          "section": "depends_on, long syntax",
+          "source": "https://github.com/compose-spec/compose-spec/blob/main/05-services.md"
+        }
+      ],
+      "source": "https://github.com/compose-spec/compose-spec/blob/main/05-services.md"
+    },
+    {
+      "id": "depends-on-not-healthy",
+      "severity": "warning",
+      "area": "startup",
+      "file": "examples/shop.compose.yaml",
+      "where": "#/services/orders/depends_on/1",
+      "line": 24,
+      "subject": "orders",
+      "message": "The service \"orders\" depends on \"postgres\" with the short syntax, so Compose starts it as soon as the container of \"postgres\" has started, not when it is healthy, although \"postgres\" has a healthcheck.",
+      "fix": "Write the long syntax with \"condition: service_healthy\" for \"postgres\".",
+      "basis": [
+        {
+          "text": "Compose guarantees dependency services have been started before starting a dependent service.",
+          "section": "depends_on, short syntax",
+          "source": "https://github.com/compose-spec/compose-spec/blob/main/05-services.md"
+        },
+        {
+          "text": "Compose waits for healthchecks to pass on dependencies marked with `service_healthy`.",
+          "section": "depends_on, long syntax",
+          "source": "https://github.com/compose-spec/compose-spec/blob/main/05-services.md"
+        }
+      ],
+      "source": "https://github.com/compose-spec/compose-spec/blob/main/05-services.md"
+    },
+    {
+      "id": "depends-on-not-healthy",
+      "severity": "warning",
+      "area": "startup",
+      "file": "examples/shop.compose.yaml",
+      "where": "#/services/payments/depends_on/users",
+      "line": 35,
+      "subject": "payments",
+      "message": "The service \"payments\" depends on \"users\" with the condition service_started, so Compose starts it as soon as the container of \"users\" has started, not when it is healthy, although \"users\" has a healthcheck.",
+      "fix": "Write the long syntax with \"condition: service_healthy\" for \"users\".",
+      "basis": [
+        {
+          "text": "Compose guarantees dependency services have been started before starting a dependent service.",
+          "section": "depends_on, short syntax",
+          "source": "https://github.com/compose-spec/compose-spec/blob/main/05-services.md"
+        },
+        {
+          "text": "Compose waits for healthchecks to pass on dependencies marked with `service_healthy`.",
+          "section": "depends_on, long syntax",
+          "source": "https://github.com/compose-spec/compose-spec/blob/main/05-services.md"
+        }
+      ],
+      "source": "https://github.com/compose-spec/compose-spec/blob/main/05-services.md"
+    },
+    {
+      "id": "depends-on-not-healthy",
+      "severity": "warning",
+      "area": "startup",
+      "file": "examples/shop.compose.yaml",
+      "where": "#/services/catalog/depends_on/0",
+      "line": 60,
+      "subject": "catalog",
+      "message": "The service \"catalog\" depends on \"users\" with the short syntax, so Compose starts it as soon as the container of \"users\" has started, not when it is healthy, although \"users\" has a healthcheck.",
+      "fix": "Write the long syntax with \"condition: service_healthy\" for \"users\".",
+      "basis": [
+        {
+          "text": "Compose guarantees dependency services have been started before starting a dependent service.",
+          "section": "depends_on, short syntax",
+          "source": "https://github.com/compose-spec/compose-spec/blob/main/05-services.md"
+        },
+        {
+          "text": "Compose waits for healthchecks to pass on dependencies marked with `service_healthy`.",
+          "section": "depends_on, long syntax",
+          "source": "https://github.com/compose-spec/compose-spec/blob/main/05-services.md"
+        }
+      ],
+      "source": "https://github.com/compose-spec/compose-spec/blob/main/05-services.md"
+    },
+    {
+      "id": "no-healthcheck",
+      "severity": "warning",
+      "area": "startup",
+      "file": "examples/shop.compose.yaml",
+      "where": "#/services/payments",
+      "line": 32,
+      "subject": "payments",
+      "message": "The service \"orders\" depends on \"payments\", which declares no healthcheck in the file, so nothing tells it when \"payments\" is ready to answer. The image may define a healthcheck that the file does not show.",
+      "fix": "Add a healthcheck to \"payments\" that tests what its dependents need (for example that it answers on its port), and make them wait with \"condition: service_healthy\".",
+      "basis": [
+        {
+          "text": "Compose waits for healthchecks to pass on dependencies marked with `service_healthy`.",
+          "section": "depends_on, long syntax",
+          "source": "https://github.com/compose-spec/compose-spec/blob/main/05-services.md"
+        },
+        {
+          "text": "Your Compose file can override the values set in the Dockerfile.",
+          "section": "healthcheck",
+          "source": "https://github.com/compose-spec/compose-spec/blob/main/05-services.md"
+        }
+      ],
+      "source": "https://github.com/compose-spec/compose-spec/blob/main/05-services.md"
+    },
+    {
+      "id": "no-healthcheck",
+      "severity": "warning",
+      "area": "startup",
+      "file": "examples/shop.compose.yaml",
+      "where": "#/services/catalog",
+      "line": 57,
+      "subject": "catalog",
+      "message": "The service \"gateway\" depends on \"catalog\", which declares no healthcheck in the file, so nothing tells it when \"catalog\" is ready to answer. The image may define a healthcheck that the file does not show.",
+      "fix": "Add a healthcheck to \"catalog\" that tests what its dependents need (for example that it answers on its port), and make them wait with \"condition: service_healthy\".",
+      "basis": [
+        {
+          "text": "Compose waits for healthchecks to pass on dependencies marked with `service_healthy`.",
+          "section": "depends_on, long syntax",
+          "source": "https://github.com/compose-spec/compose-spec/blob/main/05-services.md"
+        },
+        {
+          "text": "Your Compose file can override the values set in the Dockerfile.",
+          "section": "healthcheck",
+          "source": "https://github.com/compose-spec/compose-spec/blob/main/05-services.md"
+        }
+      ],
+      "source": "https://github.com/compose-spec/compose-spec/blob/main/05-services.md"
+    },
+    {
+      "id": "hub-service",
+      "severity": "warning",
+      "area": "coupling",
+      "file": "examples/shop.compose.yaml",
+      "where": "#/services/users",
+      "line": 44,
+      "subject": "users",
+      "message": "4 of the 4 other application services reach \"users\": \"gateway\", \"orders\", \"payments\" and \"catalog\". A change to its API, a slow answer or an outage of \"users\" reaches most of the application at once, and it cannot be changed or replaced on its own.",
+      "fix": "Check whether every service needs \"users\" directly. Callers can get its data from events they keep a copy of, or through the gateway; split \"users\" if it does more than one job.",
+      "basis": [
+        {
+          "text": "A service is an abstract definition of a computing resource within an application which can be scaled or replaced independently from other components.",
+          "section": "Services top-level element",
+          "source": "https://github.com/compose-spec/compose-spec/blob/main/05-services.md"
+        },
+        {
+          "text": "Services must be loosely coupled so that they can be developed, deployed and scaled independently",
+          "section": "Forces",
+          "source": "https://microservices.io/patterns/data/database-per-service.html"
+        }
+      ],
+      "source": "https://github.com/compose-spec/compose-spec/blob/main/05-services.md"
+    },
+    {
+      "id": "hardcoded-peer-address",
+      "severity": "warning",
+      "area": "coupling",
+      "file": "examples/shop.compose.yaml",
+      "where": "#/services/payments/environment/USERS_ADDR",
+      "line": 42,
+      "subject": "payments",
+      "message": "The variable USERS_ADDR of the service \"payments\" reaches 203.0.113.17 by IP address. An address written into the file breaks when the network or the other service moves, and hides the link between the services from anyone who reads the file.",
+      "fix": "Use the name of the service (or a network alias) as the host, and let the Compose network resolve it.",
+      "basis": [
+        {
+          "text": "When no specific network configuration is set, any service is able to reach any other service at that service's name on the `default` network.",
+          "section": "links",
+          "source": "https://github.com/compose-spec/compose-spec/blob/main/05-services.md"
+        },
+        {
+          "text": "Containers for the linked service are reachable at a hostname identical to the alias, or the service name if no alias is specified.",
+          "section": "links",
+          "source": "https://github.com/compose-spec/compose-spec/blob/main/05-services.md"
+        }
+      ],
+      "source": "https://github.com/compose-spec/compose-spec/blob/main/05-services.md"
+    },
+    {
+      "id": "summary",
+      "severity": "info",
+      "area": "coupling",
+      "file": "examples/shop.compose.yaml",
+      "where": "#/services",
+      "line": 5,
+      "subject": "services",
+      "message": "6 services (5 application, 1 database, 0 broker) with 13 references between them (8 by depends_on, 1 by links, 9 by environment). The highest fan-in is \"users\" (4) and the highest fan-out is \"gateway\" (4).",
+      "fix": "Nothing to fix; this line and the services table show the shape of the application.",
+      "basis": [
+        {
+          "text": "A service is an abstract definition of a computing resource within an application which can be scaled or replaced independently from other components.",
+          "section": "Services top-level element",
+          "source": "https://github.com/compose-spec/compose-spec/blob/main/05-services.md"
+        }
+      ],
+      "source": "https://github.com/compose-spec/compose-spec/blob/main/05-services.md"
+    }
+  ],
+  "notes": [],
+  "counts": {
+    "error": 3,
+    "warning": 10,
+    "info": 1
+  },
+  "gate": {
+    "failOn": "warning",
+    "pass": false,
+    "reason": "3 errors, 10 warnings"
+  }
+}

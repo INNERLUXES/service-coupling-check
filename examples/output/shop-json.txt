@@ -1,0 +1,44 @@
+service-coupling-check: examples/shop.compose.json
+compose: 1 file, 4 services (3 application, 1 database, 0 broker), 3 references (2 depends_on, 0 links, 3 environment), chain limit 3, hub minimum 3
+areas:
+  Compose model     fail   value-invalid x1
+  Data ownership    fail   shared-database x1
+  Startup order     pass   no finding
+  Coupling          warn   hardcoded-peer-address x1, summary x1
+services:
+  service   kind         fan-in  fan-out  chain  healthcheck
+  gateway   application       0        1      2  no
+  orders    application       1        1      1  yes
+  payments  application       0        1      0  yes
+  mysql     database          2        0      0  yes
+findings: 2 error, 1 warning, 1 info
+
+Compose model (1 finding)
+
+  ERROR    value-invalid  examples/shop.compose.json #/services/gateway/depends_on/payments/condition  line 8
+           The condition of "payments" in depends_on of the service "gateway" is not one of service_started, service_healthy, service_completed_successfully, so it was not read.
+           basis: "A Compose file must declare a `services` top-level element as a map whose keys are string representations of service names, and whose values are service definitions." (Services top-level element, https://github.com/compose-spec/compose-spec/blob/main/05-services.md)
+           fix: Write one of service_started, service_healthy, service_completed_successfully.
+
+Data ownership (1 finding)
+
+  ERROR    shared-database  examples/shop.compose.json #/services/mysql  line 26
+           The services "orders" (depends_on, DB_HOST) and "payments" (JDBC_URL) both reach the database service "mysql", and at least two of them name the same database on it. A change to one table can then break another service, and one service's load or locks can slow down the others.
+           basis: "Keep each microservice's persistent data private to that service and accessible only via its API." (Solution, https://microservices.io/patterns/data/database-per-service.html)
+           basis: "Development time coupling - a developer working on, for example, the OrderService will need to coordinate schema changes with the developers of other services that access the same tables." (Drawbacks, https://microservices.io/patterns/data/shared-database.html)
+           fix: Give each service its own database (a database server per service, or its own database or schema on "mysql" with credentials that reach only that one), and let the other services ask the owner through its API.
+
+Coupling (2 findings)
+
+  WARNING  hardcoded-peer-address  examples/shop.compose.json #/services/gateway/environment/1  line 12
+           The variable PAYMENTS_URL of the service "gateway" reaches 198.51.100.24 by IP address. An address written into the file breaks when the network or the other service moves, and hides the link between the services from anyone who reads the file.
+           basis: "When no specific network configuration is set, any service is able to reach any other service at that service's name on the `default` network." (links, https://github.com/compose-spec/compose-spec/blob/main/05-services.md)
+           basis: "Containers for the linked service are reachable at a hostname identical to the alias, or the service name if no alias is specified." (links, https://github.com/compose-spec/compose-spec/blob/main/05-services.md)
+           fix: Use the name of the service (or a network alias) as the host, and let the Compose network resolve it.
+
+  INFO     summary  examples/shop.compose.json #/services  line 3
+           4 services (3 application, 1 database, 0 broker) with 3 references between them (2 by depends_on, 0 by links, 3 by environment). The highest fan-in is "mysql" (2) and the highest fan-out is "gateway" (1).
+           basis: "A service is an abstract definition of a computing resource within an application which can be scaled or replaced independently from other components." (Services top-level element, https://github.com/compose-spec/compose-spec/blob/main/05-services.md)
+           fix: Nothing to fix; this line and the services table show the shape of the application.
+
+GATE: FAIL - 2 errors

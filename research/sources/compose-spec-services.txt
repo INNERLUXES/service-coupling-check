@@ -1,0 +1,245 @@
+Source: https://github.com/compose-spec/compose-spec/blob/main/05-services.md
+
+# Services top-level element
+
+A service is an abstract definition of a computing resource within an application which can be scaled or replaced
+independently from other components. Services are backed by a set of containers, run by the platform
+according to replication requirements and placement constraints. As services are backed by containers, they are defined
+by a Docker image and set of runtime arguments. All containers within a service are identically created with these
+arguments.
+
+A Compose file must declare a `services` top-level element as a map whose keys are string representations of service names,
+and whose values are service definitions. A service  definition contains the configuration that is applied to each
+service container.
+
+## depends_on
+
+`depends_on` expresses startup and shutdown dependencies between services.
+
+### Short syntax
+
+The short syntax variant only specifies service names of the dependencies.
+Service dependencies cause the following behaviors:
+
+- Compose creates services in dependency order. In the following
+  example, `db` and `redis` are created before `web`.
+
+- Compose removes services in dependency order. In the following
+  example, `web` is removed before `db` and `redis`.
+
+Simple example:
+
+```yml
+services:
+  web:
+    build: .
+    depends_on:
+      - db
+      - redis
+  redis:
+    image: redis
+  db:
+    image: postgres
+```
+
+Compose guarantees dependency services have been started before
+starting a dependent service.
+Compose waits for dependency services to be "ready" before
+starting a dependent service.
+
+### Long syntax
+
+The long form syntax enables the configuration of additional fields that can't be
+expressed in the short form.
+
+- `restart`: When set to `true` Compose restarts this service after it updates the dependency service.
+  This applies to an explicit restart controlled by a Compose operation, and excludes automated restart by the container runtime
+  after the container dies.
+
+- `condition`: Sets the condition under which dependency is considered satisfied
+  - `service_started`: An equivalent of the short syntax described above
+  - `service_healthy`: Specifies that a dependency is expected to be "healthy"
+    (as indicated by [healthcheck](#healthcheck)) before starting a dependent
+    service.
+  - `service_completed_successfully`: Specifies that a dependency is expected to run
+    to successful completion before starting a dependent service.
+- `required`: When set to `false` Compose only warns you when the dependency service isn't started or available. If it's not defined
+    the default value of `required` is `true`.
+
+Service dependencies cause the following behaviors:
+
+- Compose creates services in dependency order. In the following
+  example, `db` and `redis` are created before `web`.
+
+- Compose waits for healthchecks to pass on dependencies
+  marked with `service_healthy`. In the following example, `db` is expected to
+  be "healthy" before `web` is created.
+
+- Compose removes services in dependency order. In the following
+  example, `web` is removed before `db` and `redis`.
+
+```yml
+services:
+  web:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+        restart: true
+      redis:
+        condition: service_started
+  redis:
+    image: redis
+  db:
+    image: postgres
+```
+
+Compose guarantees dependency services are started before
+starting a dependent service.
+Compose guarantees dependency services marked with
+`service_healthy` are "healthy" before starting a dependent service.
+
+## environment
+
+`environment` defines environment variables set in the container. `environment` can use either an array or a
+map. Any boolean values; true, false, yes, no, should be enclosed in quotes to ensure
+they are not converted to True or False by the YAML parser.
+
+Environment variables can be declared by a single key (no value to equals sign). In this case Compose
+relies on you to resolve the value. If the value is not resolved, the variable
+is unset and is removed from the service container environment.
+
+Map syntax:
+
+```yml
+environment:
+  RACK_ENV: development
+  SHOW: "true"
+  USER_INPUT:
+```
+
+Array syntax:
+
+```yml
+environment:
+  - RACK_ENV=development
+  - SHOW=true
+  - USER_INPUT
+```
+
+When both `env_file` and `environment` are set for a service, values set by `environment` have precedence.
+
+## extends
+
+`extends` lets you share common configurations among different files, or even different projects entirely. With `extends` you can define a common set of service options in one place and refer to it from anywhere. You can refer to another Compose file and select a service you want to also use in your own application, with the ability to override some attributes for your own needs.
+
+You can use `extends` on any service together with other configuration keys. The `extends` value must be a mapping
+defined with a required `service` and an optional `file` key.
+
+```yaml
+extends:
+  file: common.yml
+  service: webapp
+```
+
+- `service`: Defines the name of the service being referenced as a base, for example `web` or `database`.
+- `file`: The location of a Compose configuration file defining that service.
+
+### Restrictions
+
+When a service is referenced using `extends`, it can declare dependencies on other resources. These dependencies
+may be explicitly defined through attributes like `volumes`, `networks`, `configs`, `secrets`, `links`, `volumes_from`,
+or `depends_on`. Alternatively, dependencies can reference another service using the `service:{name}` syntax in
+namespace declarations such as `ipc`, `pid`, or `network_mode`.
+
+Compose does not automatically import these referenced resources into the extended model. It is the responsibility
+of the Compose file author to ensure all required resources are explicitly declared in the model that relies on `extends`.
+
+Circular references with `extends` are not supported, Compose returns an error when one is detected.
+
+## external_links
+
+`external_links` link service containers to services managed outside of your Compose application.
+`external_links` define the name of an existing service to retrieve using the platform lookup mechanism.
+An alias of the form `SERVICE:ALIAS` can be specified.
+
+```yml
+external_links:
+  - redis
+  - database:mysql
+  - database:postgresql
+```
+
+## healthcheck
+
+`healthcheck` declares a check that's run to determine whether or not the service containers are "healthy". It works in the same way, and has the same default values, as the
+[HEALTHCHECK Dockerfile instruction](https://docs.docker.com/engine/reference/builder/#healthcheck)
+set by the service's Docker image. Your Compose file can override the values set in the Dockerfile.
+
+```yml
+healthcheck:
+  test: ["CMD", "curl", "-f", "http://localhost"]
+  interval: 1m30s
+  timeout: 10s
+  retries: 3
+  start_period: 40s
+  start_interval: 5s
+```
+
+`interval`, `timeout`, `start_period`, and `start_interval`  are [specified as durations](11-extension.md#specifying-durations).
+
+`test` defines the command Compose runs to check container health. It can be
+either a string or a list. If it's a list, the first item must be either `NONE`, `CMD` or `CMD-SHELL`.
+If it's a string, it's equivalent to specifying `CMD-SHELL` followed by that string.
+
+```yml
+# Hit the local web app
+test: ["CMD", "curl", "-f", "http://localhost"]
+```
+
+Using `CMD-SHELL` runs the command configured as a string using the container's default shell
+(`/bin/sh` for Linux). Both forms below are equivalent:
+
+```yml
+test: ["CMD-SHELL", "curl -f http://localhost || exit 1"]
+```
+
+```yml
+test: curl -f https://localhost || exit 1
+```
+
+`NONE` disables the healthcheck, and is mostly useful to disable the Healthcheck Dockerfile instruction set by the service's Docker image. Alternatively,
+the healthcheck set by the image can be disabled by setting `disable: true`:
+
+```yml
+healthcheck:
+  disable: true
+```
+
+## links
+
+> **Note**
+>
+> Availability of the `links` attribute is implementation specific.
+
+`links` defines a network link to containers in another service. Either specify both the service name and
+a link alias (`SERVICE:ALIAS`), or just the service name.
+
+```yml
+web:
+  links:
+    - db
+    - db:database
+    - redis
+```
+
+Containers for the linked service are reachable at a hostname identical to the alias, or the service name
+if no alias is specified.
+
+Links are not required to enable services to communicate. When no specific network configuration is set,
+any service is able to reach any other service at that service's name on the `default` network. If services
+do declare networks they are attached to, `links` does not override the network configuration and services not
+attached to a shared network are not be able to communicate. Compose doesn't warn you about a configuration mismatch.
+
+Links also express implicit dependency between services in the same way as
+[depends_on](#depends_on), so they determine the order of service startup.

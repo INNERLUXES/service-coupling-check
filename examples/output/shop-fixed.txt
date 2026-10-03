@@ -1,0 +1,36 @@
+service-coupling-check: examples/shop-fixed.compose.yaml, examples/shop-fixed.override.yaml
+compose: 2 files, 7 services (5 application, 2 database, 0 broker), 9 references (9 depends_on, 0 links, 9 environment), chain limit 3, hub minimum 3
+areas:
+  Compose model     pass   no finding
+  Data ownership    info   shared-database-server x1
+  Startup order     pass   no finding
+  Coupling          info   summary x1
+services:
+  service     kind         fan-in  fan-out  chain  healthcheck
+  gateway     application       0        4      3  no
+  orders      application       1        2      2  yes
+  payments    application       2        1      1  yes
+  users       application       1        1      1  yes
+  catalog     application       1        1      1  yes
+  postgres    database          3        0      0  yes
+  catalog-db  database          1        0      0  yes
+findings: 0 error, 0 warning, 2 info
+
+Data ownership (1 finding)
+
+  INFO     shared-database-server  examples/shop-fixed.compose.yaml #/services/postgres  line 75
+           The services "orders" (depends_on, DATABASE_URL), "payments" (depends_on, PAYMENTS_DB_HOST) and "users" (depends_on, DATABASE_URL) reach the database server "postgres", and each names a database of its own on it. One server for several services is allowed when each service can reach only its own database. The file cannot show the credentials or the grants that keep them apart.
+           basis: "You do not need to provision a database server for each service." (Solution, https://microservices.io/patterns/data/database-per-service.html)
+           basis: "Each service has database credentials that only grant it access its own (logical) database on a shared MySQL server." (Example, https://microservices.io/patterns/data/database-per-service.html)
+           fix: Check that each service has its own credentials and that they grant access to its own database on "postgres" only.
+
+Coupling (1 finding)
+
+  INFO     summary  examples/shop-fixed.compose.yaml #/services  line 7
+           7 services (5 application, 2 database, 0 broker) with 9 references between them (9 by depends_on, 0 by links, 9 by environment). The highest fan-in is "postgres" (3) and the highest fan-out is "gateway" (4).
+           basis: "A service is an abstract definition of a computing resource within an application which can be scaled or replaced independently from other components." (Services top-level element, https://github.com/compose-spec/compose-spec/blob/main/05-services.md)
+           fix: Nothing to fix; this line and the services table show the shape of the application.
+
+note: The services "orders" and "payments" are defined in more than one file and were merged in the order of the arguments (docs/inputs.md)
+
+GATE: PASS (--fail-on warning)

@@ -1,0 +1,31 @@
+{
+  "name": "shop",
+  "services": {
+    "gateway": {
+      "build": "./gateway",
+      "depends_on": {
+        "orders": { "condition": "service_healthy" },
+        "payments": { "condition": "service_ready" }
+      },
+      "environment": [
+        "ORDERS_URL=http://orders:8080",
+        "PAYMENTS_URL=http://198.51.100.24:8080"
+      ]
+    },
+    "orders": {
+      "build": "./orders",
+      "depends_on": { "mysql": { "condition": "service_healthy" } },
+      "environment": { "DB_HOST": "mysql", "DB_NAME": "shop" },
+      "healthcheck": { "test": ["CMD", "wget", "-q", "-O", "-", "http://localhost:8080/health"] }
+    },
+    "payments": {
+      "build": "./payments",
+      "environment": { "JDBC_URL": "jdbc:mysql://mysql:3306/shop" },
+      "healthcheck": { "test": ["CMD", "wget", "-q", "-O", "-", "http://localhost:8080/health"] }
+    },
+    "mysql": {
+      "image": "mysql:8.4",
+      "healthcheck": { "test": ["CMD", "mysqladmin", "ping"] }
+    }
+  }
+}

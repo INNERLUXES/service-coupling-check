@@ -1,0 +1,77 @@
+Source: https://yaml.org/spec/1.2.2/
+
+3.2.2.2. Anchors and Aliases
+
+In the representation graph, a node may appear in more than one
+collection.
+When serializing such data, the first occurrence of the node is
+identified by an anchor.
+Each subsequent occurrence is serialized as an alias node which refers back
+to this anchor.
+Otherwise, anchor names are a serialization detail and are discarded once
+composing is completed.
+When composing a representation graph from serialized events, an alias
+event refers to the most recent event in the serialization having the
+specified anchor.
+Therefore, anchors need not be unique within a serialization.
+In addition, an anchor need not have an alias node referring to it.
+
+6.9.1. Node Tags
+
+The tag property identifies the type of the native data structure
+presented by the node.
+A tag is denoted by the "!" indicator.
+
+[97] c-ns-tag-property ::=
+c-verbatim-tag
+| c-ns-shorthand-tag
+| c-non-specific-tag
+
+6.9.2. Node Anchors
+
+An anchor is denoted by the "&" indicator.
+It marks a node for future reference.
+An alias node can then be used to indicate additional inclusions of the
+anchored node.
+An anchored node need not be referenced by any alias nodes; in particular,
+it is valid for all nodes to be anchored.
+
+[101] c-ns-anchor-property ::=
+c-anchor # '&'
+ns-anchor-name
+
+Note that as a serialization detail, the anchor name is preserved in the
+serialization tree.
+However, it is not reflected in the representation graph and must not be used
+to convey content information.
+In particular, the YAML processor need not preserve the anchor name once the
+representation is composed.
+
+Anchor names must not contain the "[", "]", "{", "}" and ","
+characters.
+These characters would cause ambiguity with flow collection structures.
+
+[102] ns-anchor-char ::=
+ns-char - c-flow-indicator
+
+[103] ns-anchor-name ::=
+ns-anchor-char+
+
+7.1. Alias Nodes
+
+Subsequent occurrences of a previously serialized node are presented as
+alias nodes.
+The first occurrence of the node must be marked by an anchor to allow
+subsequent occurrences to be presented as alias nodes.
+
+An alias node is denoted by the "*" indicator.
+The alias refers to the most recent preceding node having the same anchor.
+It is an error for an alias node to use an anchor that does not previously
+occur in the document.
+It is not an error to specify an anchor that is not used by any alias node.
+
+Note that an alias node must not specify any properties or content, as
+these were already specified at the first occurrence of the node.
+
+[104] c-ns-alias-node ::=
+c-alias # '*'

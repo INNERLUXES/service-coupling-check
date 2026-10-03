@@ -1,0 +1,70 @@
+# A made-up online shop, wrong on purpose. service-coupling-check reports what is wrong with it;
+# shop-fixed.compose.yaml is the same shop repaired.
+name: shop
+
+services:
+  gateway:
+    build: ./gateway
+    ports:
+      - "8080:8080"
+    depends_on:
+      - orders
+      - catalog
+      - users
+    environment:
+      ORDERS_URL: http://orders:8080
+      CATALOG_URL: http://catalog:8080
+      USERS_URL: http://users:8080
+      PAYMENTS_URL: http://payments:8080
+
+  orders:
+    build: ./orders
+    depends_on:
+      - payments
+      - postgres
+    environment:
+      DATABASE_URL: postgres://orders:example@postgres:5432/shop
+      USERS_URL: http://users:8080
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:8080/health"]
+      interval: 10s
+
+  payments:
+    build: ./payments
+    depends_on:
+      users:
+        condition: service_started
+      fraud-check:
+        condition: service_started
+    environment:
+      PAYMENTS_DB_HOST: postgres
+      PAYMENTS_DB_NAME: shop
+      USERS_ADDR: 203.0.113.17:8080
+
+  users:
+    build: ./users
+    depends_on:
+      postgres:
+        condition: service_healthy
+    links:
+      - catalog
+    environment:
+      DATABASE_URL: postgres://users:example@postgres:5432/shop
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:8080/health"]
+      interval: 10s
+
+  catalog:
+    build: ./catalog
+    depends_on:
+      - users
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/shop
+
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_PASSWORD: example
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s

@@ -1,0 +1,12 @@
+# Local settings for the repaired shop, merged after shop-fixed.compose.yaml:
+#   service-coupling-check examples/shop-fixed.compose.yaml examples/shop-fixed.override.yaml
+services:
+  orders:
+    environment:
+      LOG_LEVEL: debug
+
+  payments:
+    environment:
+      LOG_LEVEL: debug
+    healthcheck:
+      interval: 5s
